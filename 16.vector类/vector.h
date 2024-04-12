@@ -12,6 +12,10 @@ using namespace std;
 //野指针 不是原来元素位置而是新元素位置 返回最新位置
 
 //涉及到深拷贝 就不要去使用memcpy了 memcpy本质就是一个浅拷贝
+
+//关于函数形参 返回值等 是用vector<T> 还是vector 这里在类作用域内 哪个都行
+//但类外 必须 是vector<T>而且还要带上特定的 模板类声明 
+//这里给出建议 都用vector<T>就行 可读性也强
 namespace Henry {
 
 	template<typename T>
@@ -39,7 +43,7 @@ namespace Henry {
 			}
 		}
 
-		vector(const vector& rhs) {
+		/*vector(const vector& rhs) {
 			_start = new T[rhs.capacity()];
 			_finish = _start + rhs.size();
 			_end = _start + rhs.capacity();
@@ -60,13 +64,42 @@ namespace Henry {
 			}
 
 			return *this;
+		}*/
+
+
+		//上面两种 是老的写法 这里给出现代写法 “借刀杀人”
+		//方便
+
+		void swap(vector<T>& rhs) {
+			//对里面的内置类型 进行标准库的调用
+			std::swap(_start, rhs._start);
+			std::swap(_finish, rhs._finish);
+			std::swap(_end, rhs._end);
+		}
+
+		vector(const vector<T>& rhs) {
+			vector<T> v(rhs._start, rhs._finish);//利用这个去拷贝rhs 在借他杀人
+			swap(v);//通过临时对象v间接实现了 拷贝
+			//v调用自己的析构函数 来释放 那块临时空间
+		}
+
+		vector<T>& operator=(const vector<T>& rhs) {
+			vector<T> v(rhs._start, rhs._finish);
+			//这个就算是自己赋值自己也无妨
+			swap(v);
+			return *this;
 		}
 
 		//还有一个迭代器区间构造函数
 	    // [first, last)  而这个构造函数是一个模板函数 根据传入的形参来推断对应类型
 		//是指针 还是迭代器 还是下标都可以
+		//注意这里他也是个构造函数 意味着 他要对成员变量进行初始化
+		//注意这里是 这个编译器 自动帮那几个成员变量初始化了 实际上
+		//在前面也说过 默认构造函数 对内置类型是不做处理的 这里是编译器帮你处理了
+		//严谨起见 还是先初始化列表以下。
 		template <class InputIterator>
 		vector(InputIterator first, InputIterator last)
+		:_start(nullptr), _finish(nullptr), _end(nullptr)
 		{
 			while (first != last)
 			{
@@ -169,7 +202,7 @@ namespace Henry {
 		}
 
 		void push_back(const T& val) {
-			if (_finish == _end) {//满了 2倍扩
+			if (_finish == _end) {//满了(空了) 2倍扩
 				int newcapacity = capacity() == 0 ? 4 : 2 * capacity();
 				reserve(newcapacity);
 				//reserve里面处理了指针的关系
