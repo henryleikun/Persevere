@@ -69,5 +69,20 @@ int main() {
 	list<S>::const_iterator csit = clls.begin();
 	//csit->a = 1; 不允许
 
+
+	//反向迭代器
+	list<int> l1;
+	l1.push_back(1);
+	l1.push_back(2);
+	l1.push_back(3);
+	l1.push_back(4);
+	l1.push_back(5);
+
+	list<int>::reverse_iterator rit = l1.rbegin();
+
+	for (; rit != l1.rend(); rit++) {
+		cout << *rit << endl;
+	}
+
 	return 0;
 }

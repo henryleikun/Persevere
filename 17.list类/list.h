@@ -1,9 +1,7 @@
 #pragma once
 #include <iostream>
 #include <cassert>
-
 using namespace std;
-
 //实现list(带头双向循环链表) 总体是跟数据结构实现差不多的 但这个
 //要好好实现迭代器  熟悉模板
 
@@ -16,7 +14,6 @@ using namespace std;
 //普通迭代器可以使用原生指针间接实现 但对于链式存储的list来说 单纯的原生指针 是
 //完成不了对应的任务的 比如iterator++ 后的指向 不一定是下一个结点 
 //这里必须要完成 对指针的封装 利用struct(class)封装它  封装后还是按指针来使用
-//这里就先不实现 反向迭代器 后续会在优先级队列里实现(堆)
 namespace Henry {
 	template<class T>
 	struct ListNode {
@@ -43,7 +40,7 @@ namespace Henry {
 		//加<T>说的是形参和返回值,类型 跟你函数名有什么关系 疯了？
 		_list_iterator(Node* node = nullptr) :pnode(node) {
 
-		}//it(list.begin()是拷贝构造 默认即可赋值运算符同理
+		}//it(list.begin())是拷贝构造 默认即可赋值运算符同理
 		//这里不给出析构函数 我只是借用以下这个结点指针对节点的数据进行操作
 		//肯定不会释放两次 结点指针 你只有使用权 没有归属权那是属于链表对象的
 
@@ -153,6 +150,84 @@ namespace Henry {
 	//	}
 	//};
 
+	//实现反向迭代器 反向迭代器在刚开始的认知里就是迭代器反过来 让反向迭代器的++就是迭代器的--
+	//确实如此，那么会有rbegin和rend函数 这两个管理的范围是什么样？跟迭代器(begin指向第一个end指向最后一个的
+	// 下一个)反过来吗(rbegin指向最后一个，而rend指向第一个的前一个)？库里面不是这样的，他是让这个范围刚好对称
+	//过来 也就是rbegin指向最后一个的下一个 rend指向第一个 是刚好对称的
+
+	//同时 迭代器是对结点指针Node*的封装 反向迭代器也不例外 他也要实现++ --等操作 也要进行封装 那问题来了
+	//需=需要再完全写一个和迭代器一样的struct吗 因为大部分功能的逻辑其实适合迭代器对象相反的，能不能复用
+	//一下呢？    答案是能  可以把反向迭代器当作一个适配器 通过别的已经封装好的迭代器去实现自己的功能
+	// 熟练运用好迭代器的接口就行
+	//上面也说了 反向的++是正向的--且反向的rbegin是指向最后一个的下一个所以在解引用的时候应该先移动再解引用
+	//所以有如下：
+    template<class Iterator,class Ref,class Ptr>
+	struct ReverseIterator {
+		typedef ReverseIterator<Iterator,Ref,Ptr> self;
+
+		Iterator it;
+
+		ReverseIterator(Iterator _it):it(_it) {
+
+		}
+
+		Ref operator*() {//因为对it的解引用再迭代器里就是返回Ref 这里返回的类型是一样的
+			             //下面对->的重载同理
+			Iterator cur = it;
+			return *--cur;
+		}
+
+		self& operator++() {//前置
+			//return --it;  self是反向迭代器 it是正向迭代器 你在干什么？
+			--it;
+
+			return *this;
+		}
+
+		self operator++(int) {//后置
+			self cur = *this;
+			--it;
+		
+			return cur;
+		}
+
+		self& operator--() {//前置
+			//return ++it;
+			++it;
+
+			return *this;
+		}
+
+		self operator--(int) {//后置
+			self cur = *this;
+			++it;
+
+			return cur;
+		}
+
+		//你的反向迭代器的解引用和->永远是处理it指向的前一个的内容 因为你获取迭代器的方式只有
+		//rbegin() rend() 就比如如果你解引用rend的话 你想要的就是他指的而不是他的前一个
+		//但有没有想过 你在用迭代器的时候 你不会直接去解引用end() 因为你知道他是指向最后一个的下一个
+		//解引用没用 那你会让他--再去解引用，这里也是一样啊 你表面上看起来的反向迭代器是rbegin()指向最后一个
+		//rend()指向第一个的前一个 所以你也不能直接解引用 rend 你要让他--，其实这时候rend()指向的是你想要的
+		//下一个但是 你解引用的实现就是刚好拿到你想要的那个 所以你清楚他们的实现 你也要清楚 他们的接口(表面
+		// 的呈现)样子  
+		Ptr operator->() {
+			Iterator cur = it;
+			--cur;
+
+			return cur.operator->();
+		}
+
+		bool operator==(const self& rhs) {
+			return it == rhs.it;
+		}
+
+		bool operator!=(const self& rhs) {
+			return it != rhs.it;
+		}
+	};
+
 
 	//记住是带头双向循环链表
 	template<class T>
@@ -162,6 +237,8 @@ namespace Henry {
 		typedef _list_iterator<T,T&,T*> iterator;//这是public 外界要用 但结点就要是private
 		                                  //其类型也是又类模板参数决定
 		typedef _list_iterator<T, const T&,const T*> const_iterator;
+		typedef ReverseIterator<iterator, T&, T*> reverse_iterator;
+		typedef ReverseIterator<iterator, const T&, const T*> const_reverse_iterator;
  	private:
 		Node* _head;
 	public:
@@ -211,7 +288,26 @@ namespace Henry {
 		const_iterator end()const {
 			return const_iterator(_head);
 		}
+
+
+		//反向迭代器
+		reverse_iterator rbegin() {
+			return reverse_iterator(end());
+		}
+
+		reverse_iterator rend() {
+			return reverse_iterator(begin());
+		}
+
+		const_reverse_iterator rbegin()const {
+			return const_reverse_iterator(end());
+		}
+
+		const_reverse_iterator rend()const {
+			return const_reverse_iterator(begin());
+		}
 	    
+		//模板构造函数
 		template<class Inputiterator>
 		list(Inputiterator first,Inputiterator last) {//接收迭代器 指针
 			empty_initialize();//没有这个初始化 _head会是随机值(不考虑vs额外的处理)
@@ -329,6 +425,4 @@ namespace Henry {
 			}
 		}
 	};
-
-
 }
